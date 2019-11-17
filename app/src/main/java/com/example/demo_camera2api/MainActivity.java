@@ -4,9 +4,11 @@ import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
+import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Button;
@@ -49,7 +51,13 @@ public class MainActivity extends AppCompatActivity {
     View.OnClickListener listenerCapture = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            camera2.getCapture();
+            CaptureCallback captureCallback = new CaptureCallback() {
+                @Override
+                public void update(final Bitmap bmp) {
+                    Log.d("YEN", "Capture.");
+                }
+            };
+            camera2.getCapture(captureCallback);
         }
     };
 

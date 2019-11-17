@@ -5,8 +5,6 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
@@ -16,6 +14,7 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
@@ -23,7 +22,7 @@ import android.media.ImageReader;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.provider.ContactsContract;
+import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
@@ -33,7 +32,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,12 +52,11 @@ public class Camera2API {
     private int lensFacing = 1;
     private String mCameraID;
     private Surface mSurface;
-    private CameraManager mCameraManager;   // list all camera, and set camera ID
+    private CameraManager mCameraManager;
     private CameraDevice mCameraDevice;
     private ImageReader mImageReader;
     private CameraCaptureSession mPreviewSession;
     private CaptureRequest.Builder mCaptureRequestBuilder;
-    private CaptureRequest mCaptureRequest;
     private HandlerThread mBackgroundThread;
     private Handler mBackgroundHandler;
     //
@@ -74,7 +71,7 @@ public class Camera2API {
     }
 
     public void init(){
-        mCameraManager = (CameraManager) this.mContext.getSystemService(Context.CAMERA_SERVICE);
+        this.mCameraManager = (CameraManager) this.mContext.getSystemService(Context.CAMERA_SERVICE);
 
         this.cameraRegister(this.lensFacing);
         this.cameraOpen();
@@ -128,9 +125,21 @@ public class Camera2API {
     }
 
     private void setupImageReader(){
+        startBackgroundThread();
         this.mImageReader = ImageReader.newInstance(this.mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.JPEG, 1);
-        this.mImageReader.setOnImageAvailableListener(onImageAvailableListener, this.mBackgroundHandler);
+        this.mImageReader.setOnImageAvailableListener(imageAvailableListener, this.mBackgroundHandler);
     }
+
+    ImageReader.OnImageAvailableListener imageAvailableListener = new ImageReader.OnImageAvailableListener() {
+        @Override
+        public void onImageAvailable(ImageReader imageReader) {
+
+            final Image image = imageReader.acquireNextImage();
+            mBackgroundHandler.post(new CaptureImage(image, captureCallback));
+        }
+    };
+
+
 
 
 
@@ -196,9 +205,7 @@ public class Camera2API {
 
                 mPreviewSession = session;
                 mCaptureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-
-                mCaptureRequest = mCaptureRequestBuilder.build();
-                mPreviewSession.setRepeatingRequest(mCaptureRequest, null, null);
+                mPreviewSession.setRepeatingRequest(mCaptureRequestBuilder.build(), null, null);
             } catch (CameraAccessException e) {
                 e.printStackTrace();
             }
@@ -211,8 +218,10 @@ public class Camera2API {
     };
 
 
-
     public void closeCamera(){
+
+        stopBackgroundThread();
+
         if(mPreviewSession != null){
             mPreviewSession.close();
             mPreviewSession = null;
@@ -226,6 +235,25 @@ public class Camera2API {
         if(mImageReader != null){
             mImageReader.close();
             mImageReader = null;
+        }
+    }
+
+    public void startBackgroundThread() {
+        mBackgroundThread = new HandlerThread("Camera Background");
+        mBackgroundThread.start();
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    }
+
+    public void stopBackgroundThread() {
+        if (mBackgroundThread != null) {
+            mBackgroundThread.quitSafely();
+            try {
+                mBackgroundThread.join();
+                mBackgroundThread = null;
+                mBackgroundHandler = null;
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -245,57 +273,15 @@ public class Camera2API {
 
 
 
-
-    public void getCapture(){
-        startBackgroundThread();
-
+    private CaptureCallback captureCallback;
+    public void getCapture(CaptureCallback captureCallback){
         try {
-            this.mPreviewSession.stopRepeating();
-            this.mPreviewSession.abortCaptures();
+            this.captureCallback = captureCallback;
 
-            this.mCaptureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
-            this.mPreviewSession.capture(mCaptureRequestBuilder.build(), new CameraCaptureSession.CaptureCallback() {
-                @Override
-                public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
-                    super.onCaptureCompleted(session, request, result);
-
-                }
-
-
-            }, this.mBackgroundHandler);
+            this.mCaptureRequestBuilder.addTarget(this.mImageReader.getSurface());
+            this.mPreviewSession.capture(this.mCaptureRequestBuilder.build(), null, null);
         } catch (CameraAccessException e) {
             e.printStackTrace();
-        }
-
-        stopBackgroundThread();
-    }
-
-    private ImageReader.OnImageAvailableListener onImageAvailableListener = new ImageReader.OnImageAvailableListener() {
-        @Override
-        public void onImageAvailable(ImageReader reader) {
-            final Image image = reader.acquireNextImage();
-            mBackgroundHandler.post(new CaptureImage(image));
-        }
-    };
-
-
-
-    public void startBackgroundThread() {
-        mBackgroundThread = new HandlerThread("Camera Background");
-        mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-    }
-
-    public void stopBackgroundThread() {
-        if (mBackgroundThread != null) {
-            mBackgroundThread.quitSafely();
-            try {
-                mBackgroundThread.join();
-                mBackgroundThread = null;
-                mBackgroundHandler = null;
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
         }
     }
 }

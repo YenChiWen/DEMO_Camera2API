@@ -2,11 +2,8 @@ package com.example.demo_camera2api;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Paint;
-import android.hardware.camera2.CameraCaptureSession;
 import android.media.Image;
 import android.os.Build;
-import android.telecom.Call;
 
 import androidx.annotation.RequiresApi;
 
@@ -18,7 +15,7 @@ public class CaptureImage implements Runnable{
     CaptureCallback captureCallback;
     private Bitmap bmpCapture;
 
-    CaptureImage(Image image){
+    CaptureImage(Image image, CaptureCallback captureCallback){
         this.mImage = image;
         this.captureCallback = captureCallback;
     }
@@ -30,6 +27,7 @@ public class CaptureImage implements Runnable{
         buffer.get(data);
         this.bmpCapture = BitmapFactory.decodeByteArray(data, 0, data.length);
 
+        this.mImage.close();
         captureCallback.update(this.bmpCapture);
     }
 }
