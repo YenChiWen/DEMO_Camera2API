@@ -14,18 +14,16 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.CaptureResult;
-import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
+import android.widget.ListView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -37,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
@@ -62,19 +61,31 @@ public class Camera2API {
     //
     private final int REQUEST_CAMERA_PERMISSION = 0;
 
-
     Camera2API(Context context, TextureView textureView){
         this.mContext = context;
         this.mTextureView = textureView;
         this.mWidth = textureView.getWidth();
         this.mHeight = textureView.getHeight();
+        this.mCameraManager = (CameraManager) this.mContext.getSystemService(Context.CAMERA_SERVICE);
     }
 
     public void init(){
-        this.mCameraManager = (CameraManager) this.mContext.getSystemService(Context.CAMERA_SERVICE);
-
         this.cameraRegister(this.lensFacing);
         this.cameraOpen();
+    }
+
+    static List<String> ScanAllCamera(Context context){
+        List<String> sResult = new ArrayList<>();
+        try {
+            CameraManager cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+            for(String sCameraID : cameraManager.getCameraIdList()){
+                sResult.add(Parameter.getSOURCE().get(sCameraID));
+            }
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
+        return sResult;
     }
 
 
@@ -264,14 +275,6 @@ public class Camera2API {
     public int getLensFacing() {
         return lensFacing;
     }
-
-
-
-
-
-
-
-
 
     private CaptureCallback captureCallback;
     public void getCapture(CaptureCallback captureCallback){

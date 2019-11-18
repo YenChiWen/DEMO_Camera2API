@@ -3,28 +3,23 @@ package com.example.demo_camera2api;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.annotation.SuppressLint;
-import android.graphics.Bitmap;
-import android.graphics.SurfaceTexture;
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
-import android.view.TextureView;
 import android.view.View;
-import android.widget.Button;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.ListAdapter;
+import android.widget.ListView;
 
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class MainActivity extends AppCompatActivity {
-
-    Button btnCapture;
-    Button btnRecode;
-    Button btnDetect;
-    FloatingActionButton fabSync;
-    TextureView textureView;
-
-    Camera2API camera2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,79 +30,42 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void init(){
-        btnCapture = findViewById(R.id.btn_capture);
-        btnRecode = findViewById(R.id.btn_record);
-        btnDetect = findViewById(R.id.btn_detect);
-        textureView = findViewById(R.id.textureView);
-        fabSync = findViewById(R.id.fab_sync);
+        List<String> sSource = new ArrayList<>(Arrays.asList(Parameter.getSOURCE().get("-1")));
+        sSource.addAll(Camera2API.ScanAllCamera(getApplicationContext()));
 
-        btnCapture.setOnClickListener(listenerCapture);
-        btnRecode.setOnClickListener(listenerRecode);
-        btnDetect.setOnClickListener(listenerDetect);
-        textureView.setSurfaceTextureListener(surfaceTextureListener);
-        fabSync.setOnClickListener(listenerSync);
+        // adapter
+        ListAdapter listAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, sSource);
+
+        // list view
+        ListView listView = findViewById(R.id.listview_allCamera);
+        listView.setAdapter(listAdapter);
+        listView.setOnItemClickListener(onItemClickListener);
     }
 
-    View.OnClickListener listenerCapture = new View.OnClickListener() {
+    ListView.OnItemClickListener onItemClickListener = new AdapterView.OnItemClickListener() {
         @Override
-        public void onClick(View v) {
-            CaptureCallback captureCallback = new CaptureCallback() {
-                @Override
-                public void update(final Bitmap bmp) {
-                    Log.d("YEN", "Capture.");
+        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+
+            ListView listView = (ListView) parent;
+            String selected = listView.getItemAtPosition(position).toString();
+
+            if(selected.equals(Parameter.getSOURCE().get("-1"))){
+                Intent intent = new Intent(MainActivity.this, ImageProcessorActivity.class);
+                startActivity(intent);
+            }
+            else{
+                int lens = 0;
+                for(String key : Parameter.getSOURCE().keySet()){
+                    if(selected.equals(Parameter.getSOURCE().get(key))){
+                        lens = Integer.valueOf(key);
+                        break;
+                    }
                 }
-            };
-            camera2.getCapture(captureCallback);
-        }
-    };
 
-    View.OnClickListener listenerRecode = new View.OnClickListener(){
-        @Override
-        public void onClick(View v) {
-
-        }
-    };
-
-    View.OnClickListener listenerDetect = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-
-        }
-    };
-
-    View.OnClickListener listenerSync = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            if(camera2 != null)
-                camera2.closeCamera();
-
-            camera2.setLensFacing((camera2.getLensFacing()+1) % 2);
-            camera2.init();
-        }
-    };
-
-    TextureView.SurfaceTextureListener surfaceTextureListener = new TextureView.SurfaceTextureListener() {
-        @SuppressLint("NewApi")
-        @Override
-        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            camera2 = new Camera2API(MainActivity.this, textureView);
-            camera2.setLensFacing(1);
-            camera2.init();
-        }
-
-        @Override
-        public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-
-        }
-
-        @Override
-        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-            return false;
-        }
-
-        @Override
-        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-
+                Intent intent = new Intent(MainActivity.this, Camera2Activity.class);
+                intent.putExtra("lens", lens);
+                startActivity(intent);
+            }
         }
     };
 }
