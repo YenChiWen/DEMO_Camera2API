@@ -14,28 +14,30 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
-import android.widget.ListView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
@@ -50,7 +52,6 @@ public class Camera2API {
     private Size mPreviewSize;
     private int lensFacing = 1;
     private String mCameraID;
-    private Surface mSurface;
     private CameraManager mCameraManager;
     private CameraDevice mCameraDevice;
     private ImageReader mImageReader;
@@ -58,8 +59,15 @@ public class Camera2API {
     private CaptureRequest.Builder mCaptureRequestBuilder;
     private HandlerThread mBackgroundThread;
     private Handler mBackgroundHandler;
+    //video
+    private MediaRecorder mMediaRecorder;
+    private String mNextVideoAbsolutePath;
+    private Size mVideoSize;
     //
-    private final int REQUEST_CAMERA_PERMISSION = 0;
+    private static final int REQUEST_CAMERA_PERMISSION = 0;
+    private static final int REQUEST_AUDIO_PERMISSIONS = 10;
+    private FPSCalculator fpsCalculator = new FPSCalculator(getClass().getSimpleName());
+    private static String TAG = "YEN";
 
     Camera2API(Context context, TextureView textureView){
         this.mContext = context;
@@ -67,6 +75,7 @@ public class Camera2API {
         this.mWidth = textureView.getWidth();
         this.mHeight = textureView.getHeight();
         this.mCameraManager = (CameraManager) this.mContext.getSystemService(Context.CAMERA_SERVICE);
+        startBackgroundThread();
     }
 
     public void init(){
@@ -99,7 +108,9 @@ public class Camera2API {
                 CameraCharacteristics cameraCharacteristics = mCameraManager.getCameraCharacteristics(sCameraID);
                 if(lens_facing == cameraCharacteristics.get(CameraCharacteristics.LENS_FACING)){
                     StreamConfigurationMap map = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-                    this.mPreviewSize = getOptimalSize(map.getOutputSizes(SurfaceTexture.class), this.mWidth, this.mHeight);
+                    this.mVideoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder.class));
+                    this.mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), this.mWidth, this.mHeight, this.mVideoSize);
+                    //this.mPreviewSize = getOptimalSize(map.getOutputSizes(SurfaceTexture.class), this.mWidth, this.mHeight);
                     this.mCameraID = sCameraID;
                     setupImageReader();
                     break;
@@ -108,6 +119,51 @@ public class Camera2API {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
+
+    private static Size chooseVideoSize(Size[] choices) {
+        for (Size size : choices) {
+            if (size.getWidth() == size.getHeight() * 4 / 3 && size.getWidth() <= 1080) {
+                return size;
+            }
+        }
+        Log.e(TAG, "Couldn't find any suitable video size");
+        return choices[choices.length - 1];
+    }
+
+    private static Size chooseOptimalSize(Size[] choices, int width, int height, Size aspectRatio) {
+        // Collect the supported resolutions that are at least as big as the preview Surface
+        List<Size> bigEnough = new ArrayList<>();
+        int w = aspectRatio.getWidth();
+        int h = aspectRatio.getHeight();
+        for (Size option : choices) {
+            if (option.getHeight() == option.getWidth() * h / w &&
+                    option.getWidth() >= width && option.getHeight() >= height) {
+                bigEnough.add(option);
+            }
+        }
+
+        // Pick the smallest of those, assuming we found any
+        if (bigEnough.size() > 0) {
+            return Collections.min(bigEnough, new CompareSizesByArea());
+        } else {
+            Log.e(TAG, "Couldn't find any suitable preview size");
+            return choices[0];
+        }
+    }
+
+    /**
+     * Compares two {@code Size}s based on their areas.
+     */
+    static class CompareSizesByArea implements Comparator<Size> {
+
+        @Override
+        public int compare(Size lhs, Size rhs) {
+            // We cast here to ensure the multiplications won't overflow
+            return Long.signum((long) lhs.getWidth() * lhs.getHeight() -
+                    (long) rhs.getWidth() * rhs.getHeight());
+        }
+
     }
 
     private Size getOptimalSize(Size[] sizeMap, int width, int height) {
@@ -136,7 +192,6 @@ public class Camera2API {
     }
 
     private void setupImageReader(){
-        startBackgroundThread();
         this.mImageReader = ImageReader.newInstance(this.mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.JPEG, 1);
         this.mImageReader.setOnImageAvailableListener(imageAvailableListener, this.mBackgroundHandler);
     }
@@ -144,9 +199,8 @@ public class Camera2API {
     ImageReader.OnImageAvailableListener imageAvailableListener = new ImageReader.OnImageAvailableListener() {
         @Override
         public void onImageAvailable(ImageReader imageReader) {
-
             final Image image = imageReader.acquireNextImage();
-            mBackgroundHandler.post(new CaptureImage(image, captureCallback));
+            mBackgroundHandler.post(new CaptureImage(image, updateCallback));
         }
     };
 
@@ -154,21 +208,38 @@ public class Camera2API {
 
 
 
+    @SuppressLint("MissingPermission")
     public void cameraOpen() {
         try {
-            if( ActivityCompat.checkSelfPermission(this.mContext, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(this.mContext, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+            if(!checkPERMISSIONS(VIDEO_PERMISSIONS)){
+                ActivityCompat.requestPermissions((Activity) this.mContext, new String[]{
+                        Manifest.permission.CAMERA
+                }, REQUEST_CAMERA_PERMISSION);
 
                 ActivityCompat.requestPermissions((Activity) this.mContext, new String[]{
-                        Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE
-                }, REQUEST_CAMERA_PERMISSION);
+                        Manifest.permission.RECORD_AUDIO
+                }, REQUEST_AUDIO_PERMISSIONS);
             }
 
+            mMediaRecorder = new MediaRecorder();
             if(!this.mCameraID.equals(null))
                 mCameraManager.openCamera(this.mCameraID, mCameraDeviceStateCallback, null);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
+
+    private static final String[] VIDEO_PERMISSIONS = {
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO,
+    };
+
+    private boolean checkPERMISSIONS(String[] permissions){
+        for(String permission : permissions){
+            if (ActivityCompat.checkSelfPermission(this.mContext, permission) != PackageManager.PERMISSION_GRANTED)
+                return false;
+        }
+        return true;
     }
 
     private CameraDevice.StateCallback mCameraDeviceStateCallback = new CameraDevice.StateCallback() {
@@ -198,17 +269,17 @@ public class Camera2API {
         mSurfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
 
         try {
-            // captureRequest.Builder, CameraCaptureSession.stateCallback
-            mSurface = new Surface(mSurfaceTexture);
+            // captureRequest.Builder, CameraCaptureSession.stateCallbackPreview
+            Surface mSurface = new Surface(mSurfaceTexture);
             mCaptureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mCaptureRequestBuilder.addTarget(mSurface);
-            mCameraDevice.createCaptureSession(Arrays.asList(mSurface, mImageReader.getSurface()), stateCallback, null);
+            mCameraDevice.createCaptureSession(Arrays.asList(mSurface, mImageReader.getSurface()), stateCallbackPreview, null);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
     }
 
-    CameraCaptureSession.StateCallback stateCallback = new CameraCaptureSession.StateCallback() {
+    CameraCaptureSession.StateCallback stateCallbackPreview = new CameraCaptureSession.StateCallback() {
         @Override
         public void onConfigured(@NonNull CameraCaptureSession session) {
             try {
@@ -216,7 +287,7 @@ public class Camera2API {
 
                 mPreviewSession = session;
                 mCaptureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-                mPreviewSession.setRepeatingRequest(mCaptureRequestBuilder.build(), null, null);
+                mPreviewSession.setRepeatingRequest(mCaptureRequestBuilder.build(), captureCallback, null);
             } catch (CameraAccessException e) {
                 e.printStackTrace();
             }
@@ -228,15 +299,19 @@ public class Camera2API {
         }
     };
 
+    CameraCaptureSession.CaptureCallback captureCallback = new CameraCaptureSession.CaptureCallback() {
+        @Override
+        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+            super.onCaptureCompleted(session, request, result);
+
+            fpsCalculator.calculate();
+        }
+    };
 
     public void closeCamera(){
 
         stopBackgroundThread();
-
-        if(mPreviewSession != null){
-            mPreviewSession.close();
-            mPreviewSession = null;
-        }
+        closePreviewSession();
 
         if(mCameraDevice != null){
             mCameraDevice.close();
@@ -247,15 +322,27 @@ public class Camera2API {
             mImageReader.close();
             mImageReader = null;
         }
+
+        if(this.mMediaRecorder != null){
+            this.mMediaRecorder.release();
+            this.mMediaRecorder = null;
+        }
     }
 
-    public void startBackgroundThread() {
+    private void closePreviewSession(){
+        if(mPreviewSession != null){
+            mPreviewSession.close();
+            mPreviewSession = null;
+        }
+    }
+
+    private void startBackgroundThread() {
         mBackgroundThread = new HandlerThread("Camera Background");
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
     }
 
-    public void stopBackgroundThread() {
+    private void stopBackgroundThread() {
         if (mBackgroundThread != null) {
             mBackgroundThread.quitSafely();
             try {
@@ -276,15 +363,80 @@ public class Camera2API {
         return lensFacing;
     }
 
-    private CaptureCallback captureCallback;
-    public void getCapture(CaptureCallback captureCallback){
+    private CaptureImage.updateCallback updateCallback;
+    public void getCapture(CaptureImage.updateCallback updateCallback){
         try {
-            this.captureCallback = captureCallback;
+            this.updateCallback = updateCallback;
 
             this.mCaptureRequestBuilder.addTarget(this.mImageReader.getSurface());
             this.mPreviewSession.capture(this.mCaptureRequestBuilder.build(), null, null);
         } catch (CameraAccessException e) {
             e.printStackTrace();
+        }
+    }
+
+    public void startRecordingVideo(){
+        String sPath = "sdcard/" + this.mContext.getPackageName();
+        Parameter.checkDir(sPath);
+        mNextVideoAbsolutePath = sPath + "/" + System.currentTimeMillis() + ".mp4";
+
+        try {
+            closePreviewSession();
+            setupMediaRecorder();
+            SurfaceTexture texture = mTextureView.getSurfaceTexture();
+            assert texture != null;
+            texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
+            mCaptureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+            List<Surface> surfaces = new ArrayList<>();
+
+            // Set up Surface for the camera preview
+            Surface previewSurface = new Surface(texture);
+            surfaces.add(previewSurface);
+            mCaptureRequestBuilder.addTarget(previewSurface);
+
+            // Set up Surface for the MediaRecorder
+            Surface recorderSurface = mMediaRecorder.getSurface();
+            surfaces.add(recorderSurface);
+            mCaptureRequestBuilder.addTarget(recorderSurface);
+
+            // Start a capture session
+            // Once the session starts, we can update the UI and start recording
+            mCameraDevice.createCaptureSession(surfaces, stateCallbackPreview, null);
+
+            mMediaRecorder.start();
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void stopRecordingVideo(){
+        mMediaRecorder.stop();
+        mMediaRecorder.reset();
+
+        Toast.makeText(this.mContext, "Video saved: " + mNextVideoAbsolutePath, Toast.LENGTH_LONG).show();
+        Log.d(TAG, "Video saved: " + mNextVideoAbsolutePath);
+
+        mNextVideoAbsolutePath = null;
+        createCameraPreview();
+    }
+
+    private void setupMediaRecorder(){
+        if(mNextVideoAbsolutePath != null || !mNextVideoAbsolutePath.isEmpty()){
+            try {
+                mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+                mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+                mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+                mMediaRecorder.setOutputFile(mNextVideoAbsolutePath);
+                mMediaRecorder.setVideoEncodingBitRate(10000000);
+                mMediaRecorder.setVideoFrameRate(30);
+                mMediaRecorder.setVideoSize(mVideoSize.getWidth(), mVideoSize.getHeight());
+                mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+                mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+                mMediaRecorder.prepare();
+            } catch (IOException e) {
+                e.printStackTrace();
+                Log.d(TAG, e.toString());
+            }
         }
     }
 }

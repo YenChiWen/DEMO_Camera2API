@@ -5,16 +5,18 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <Button
-        android:id="@+id/button"
+    <Switch
+        android:id="@+id/switch_face"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Button" />
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:text="face" />
 
-    <Button
-        android:id="@+id/button2"
+    <Switch
+        android:id="@+id/switch_object"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Button" />
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:text="object" />
 
 </LinearLayout>

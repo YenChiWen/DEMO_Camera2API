@@ -4,13 +4,18 @@ import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -20,9 +25,9 @@ public class Camera2Activity extends AppCompatActivity {
 
     Button btnCapture;
     Button btnRecode;
-    Button btnDetect;
     FloatingActionButton fabSync;
     TextureView textureView;
+    OverlayView overlayView;
 
     Camera2API camera2;
 
@@ -30,6 +35,7 @@ public class Camera2Activity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera2);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         init();
     }
@@ -45,41 +51,54 @@ public class Camera2Activity extends AppCompatActivity {
     private void init(){
         btnCapture = findViewById(R.id.btn_capture);
         btnRecode = findViewById(R.id.btn_record);
-        btnDetect = findViewById(R.id.btn_detect);
         textureView = findViewById(R.id.textureView);
         fabSync = findViewById(R.id.fab_sync);
+        overlayView = findViewById(R.id.overlayView_camera2);
 
         btnCapture.setOnClickListener(listenerCapture);
         btnRecode.setOnClickListener(listenerRecode);
-        btnDetect.setOnClickListener(listenerDetect);
         textureView.setSurfaceTextureListener(surfaceTextureListener);
         fabSync.setOnClickListener(listenerSync);
+
+        overlayView.addCallback(drawCallback);
     }
 
     View.OnClickListener listenerCapture = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            CaptureCallback captureCallback = new CaptureCallback() {
+            CaptureImage.updateCallback captureCallback = new CaptureImage.updateCallback() {
                 @Override
                 public void update(final Bitmap bmp) {
                     Log.d("YEN", "Capture.");
+
+//                    runOnUiThread(new Runnable() {
+//                        @Override
+//                        public void run() {
+//                            Intent intent = new Intent(Camera2Activity.this, ImageProcessorActivity.class);
+//                            intent.putExtra("CaptureImage", bmp);
+//                            startActivity(intent);
+//                        }
+//                    });
                 }
             };
             camera2.getCapture(captureCallback);
         }
     };
 
+    private boolean bRecode = false;
     View.OnClickListener listenerRecode = new View.OnClickListener(){
         @Override
         public void onClick(View v) {
-
-        }
-    };
-
-    View.OnClickListener listenerDetect = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-
+            if(bRecode){
+                bRecode = false;
+                camera2.stopRecordingVideo();
+                btnRecode.setText("Record");
+            }
+            else{
+                bRecode = true;
+                camera2.startRecordingVideo();
+                btnRecode.setText("Stop");
+            }
         }
     };
 
@@ -117,6 +136,15 @@ public class Camera2Activity extends AppCompatActivity {
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture surface) {
 
+        }
+    };
+
+
+    OverlayView.DrawCallback drawCallback = new OverlayView.DrawCallback() {
+        @Override
+        public void drawCallback(Canvas canvas) {
+            Paint paint = Parameter.setPaint(Color.RED, 6);
+            canvas.drawRect(0, 0, 100, 100, paint);
         }
     };
 }

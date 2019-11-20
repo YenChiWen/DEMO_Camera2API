@@ -11,6 +11,8 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListAdapter;
 import android.widget.ListView;
+import android.widget.Switch;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void init(){
         List<String> sSource = new ArrayList<>(Arrays.asList(Parameter.getSOURCE().get("-1")));
+        sSource.add(Parameter.getSOURCE().get("99"));
         sSource.addAll(Camera2API.ScanAllCamera(getApplicationContext()));
 
         // adapter
@@ -49,9 +52,13 @@ public class MainActivity extends AppCompatActivity {
             ListView listView = (ListView) parent;
             String selected = listView.getItemAtPosition(position).toString();
 
+            Intent intent = null;
             if(selected.equals(Parameter.getSOURCE().get("-1"))){
-                Intent intent = new Intent(MainActivity.this, ImageProcessorActivity.class);
-                startActivity(intent);
+                intent = new Intent(MainActivity.this, ImageProcessorActivity.class);
+            }
+            else if(selected.equals(Parameter.getSOURCE().get("99"))){
+                Toast.makeText(MainActivity.this, "No test task", Toast.LENGTH_LONG).show();
+                return;
             }
             else{
                 int lens = 0;
@@ -61,11 +68,10 @@ public class MainActivity extends AppCompatActivity {
                         break;
                     }
                 }
-
-                Intent intent = new Intent(MainActivity.this, Camera2Activity.class);
+                intent = new Intent(MainActivity.this, Camera2Activity.class);
                 intent.putExtra("lens", lens);
-                startActivity(intent);
             }
+            startActivity(intent);
         }
     };
 }
