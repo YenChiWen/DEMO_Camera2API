@@ -12,12 +12,12 @@ import java.nio.ByteBuffer;
 @RequiresApi(api = Build.VERSION_CODES.KITKAT)
 public class CaptureImage implements Runnable{
     Image mImage;
-    updateCallback updateCallback;
-    private Bitmap bmpCapture;
+    previewCallback previewCallback;
+    //private Bitmap bmpCapture;
 
-    CaptureImage(Image image, updateCallback updateCallback){
+    CaptureImage(Image image, previewCallback previewCallback){
         this.mImage = image;
-        this.updateCallback = updateCallback;
+        this.previewCallback = previewCallback;
     }
 
     @Override
@@ -25,14 +25,14 @@ public class CaptureImage implements Runnable{
         ByteBuffer buffer = this.mImage.getPlanes()[0].getBuffer();
         byte[] data = new byte[buffer.remaining()];
         buffer.get(data);
-        this.bmpCapture = BitmapFactory.decodeByteArray(data, 0, data.length);
+        //this.bmpCapture = BitmapFactory.decodeByteArray(data, 0, data.length);
 
         this.mImage.close();
-        updateCallback.update(this.bmpCapture);
+        previewCallback.preview(data);
     }
 
-    interface updateCallback {
-        void update(Bitmap bmp);
+    interface previewCallback {
+        void preview(byte[] data);
     }
 }
 

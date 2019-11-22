@@ -200,7 +200,7 @@ public class Camera2API {
         @Override
         public void onImageAvailable(ImageReader imageReader) {
             final Image image = imageReader.acquireNextImage();
-            mBackgroundHandler.post(new CaptureImage(image, updateCallback));
+            mBackgroundHandler.post(new CaptureImage(image, previewCallback));
         }
     };
 
@@ -209,7 +209,7 @@ public class Camera2API {
 
 
     @SuppressLint("MissingPermission")
-    public void cameraOpen() {
+    private void cameraOpen() {
         try {
             if(!checkPERMISSIONS(VIDEO_PERMISSIONS)){
                 ActivityCompat.requestPermissions((Activity) this.mContext, new String[]{
@@ -363,10 +363,10 @@ public class Camera2API {
         return lensFacing;
     }
 
-    private CaptureImage.updateCallback updateCallback;
-    public void getCapture(CaptureImage.updateCallback updateCallback){
+    private CaptureImage.previewCallback previewCallback;
+    public void getCapture(CaptureImage.previewCallback previewCallback){
         try {
-            this.updateCallback = updateCallback;
+            this.previewCallback = previewCallback;
 
             this.mCaptureRequestBuilder.addTarget(this.mImageReader.getSurface());
             this.mPreviewSession.capture(this.mCaptureRequestBuilder.build(), null, null);
@@ -400,7 +400,7 @@ public class Camera2API {
             mCaptureRequestBuilder.addTarget(recorderSurface);
 
             // Start a capture session
-            // Once the session starts, we can update the UI and start recording
+            // Once the session starts, we can preview the UI and start recording
             mCameraDevice.createCaptureSession(surfaces, stateCallbackPreview, null);
 
             mMediaRecorder.start();

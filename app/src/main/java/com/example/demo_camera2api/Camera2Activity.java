@@ -1,5 +1,6 @@
 package com.example.demo_camera2api;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -28,6 +29,7 @@ public class Camera2Activity extends AppCompatActivity {
     FloatingActionButton fabSync;
     TextureView textureView;
     OverlayView overlayView;
+    int lens;
 
     Camera2API camera2;
 
@@ -48,6 +50,13 @@ public class Camera2Activity extends AppCompatActivity {
             camera2.closeCamera();
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+
+    }
+
     private void init(){
         btnCapture = findViewById(R.id.btn_capture);
         btnRecode = findViewById(R.id.btn_record);
@@ -66,16 +75,20 @@ public class Camera2Activity extends AppCompatActivity {
     View.OnClickListener listenerCapture = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            CaptureImage.updateCallback captureCallback = new CaptureImage.updateCallback() {
+            CaptureImage.previewCallback captureCallback = new CaptureImage.previewCallback() {
                 @Override
-                public void update(final Bitmap bmp) {
+                public void preview(final byte[] data) {
                     Log.d("YEN", "Capture.");
+                    for(int i=0; i<Rect.length; i++){
+                        Rect[i] = Rect[i] + 10*(i+1);
+                    }
+                    overlayView.postInvalidate();
 
 //                    runOnUiThread(new Runnable() {
 //                        @Override
 //                        public void run() {
 //                            Intent intent = new Intent(Camera2Activity.this, ImageProcessorActivity.class);
-//                            intent.putExtra("CaptureImage", bmp);
+//                            intent.putExtra("CaptureImage", data);
 //                            startActivity(intent);
 //                        }
 //                    });
@@ -117,7 +130,9 @@ public class Camera2Activity extends AppCompatActivity {
         @SuppressLint("NewApi")
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            int lens = getIntent().getExtras().getInt("lens");
+
+            if(getIntent().getExtras() != null)
+                lens = getIntent().getExtras().getInt("lens");
             camera2 = new Camera2API(Camera2Activity.this, textureView);
             camera2.setLensFacing(lens);
             camera2.init();
@@ -139,12 +154,12 @@ public class Camera2Activity extends AppCompatActivity {
         }
     };
 
-
+    int[] Rect = {0, 0, 0, 0};
     OverlayView.DrawCallback drawCallback = new OverlayView.DrawCallback() {
         @Override
         public void drawCallback(Canvas canvas) {
             Paint paint = Parameter.setPaint(Color.RED, 6);
-            canvas.drawRect(0, 0, 100, 100, paint);
+            canvas.drawRect(Rect[0], Rect[1], Rect[2], Rect[3], paint);
         }
     };
 }
