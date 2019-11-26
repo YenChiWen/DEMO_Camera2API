@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
+import android.hardware.Camera;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -59,6 +60,7 @@ public class Camera2API {
     private CaptureRequest.Builder mCaptureRequestBuilder;
     private HandlerThread mBackgroundThread;
     private Handler mBackgroundHandler;
+    private boolean bCapture = false;
     //video
     private MediaRecorder mMediaRecorder;
     private String mNextVideoAbsolutePath;
@@ -67,7 +69,13 @@ public class Camera2API {
     private static final int REQUEST_CAMERA_PERMISSION = 0;
     private static final int REQUEST_AUDIO_PERMISSIONS = 10;
     private FPSCalculator fpsCalculator = new FPSCalculator(getClass().getSimpleName());
-    private static String TAG = "YEN";
+    private static String TAG = "YEN_Camera2API";
+
+    // detector
+    private boolean bObjectDetector = false;
+    private boolean bFaceDetector = false;
+    private Runnable imageConverter;
+    private CaptureImage.callback detecteCallback;
 
     Camera2API(Context context, TextureView textureView){
         this.mContext = context;
@@ -110,7 +118,7 @@ public class Camera2API {
                     StreamConfigurationMap map = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                     this.mVideoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder.class));
                     this.mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), this.mWidth, this.mHeight, this.mVideoSize);
-                    //this.mPreviewSize = getOptimalSize(map.getOutputSizes(SurfaceTexture.class), this.mWidth, this.mHeight);
+//                    this.mPreviewSize = getOptimalSize(map.getOutputSizes(SurfaceTexture.class), this.mWidth, this.mHeight);
                     this.mCameraID = sCameraID;
                     setupImageReader();
                     break;
@@ -132,7 +140,7 @@ public class Camera2API {
     }
 
     private static Size chooseOptimalSize(Size[] choices, int width, int height, Size aspectRatio) {
-        // Collect the supported resolutions that are at least as big as the preview Surface
+        // Collect the supported resolutions that are at least as big as the capture Surface
         List<Size> bigEnough = new ArrayList<>();
         int w = aspectRatio.getWidth();
         int h = aspectRatio.getHeight();
@@ -147,7 +155,7 @@ public class Camera2API {
         if (bigEnough.size() > 0) {
             return Collections.min(bigEnough, new CompareSizesByArea());
         } else {
-            Log.e(TAG, "Couldn't find any suitable preview size");
+            Log.e(TAG, "Couldn't find any suitable capture size");
             return choices[0];
         }
     }
@@ -192,7 +200,7 @@ public class Camera2API {
     }
 
     private void setupImageReader(){
-        this.mImageReader = ImageReader.newInstance(this.mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.JPEG, 1);
+        this.mImageReader = ImageReader.newInstance(this.mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.YUV_420_888, 2);
         this.mImageReader.setOnImageAvailableListener(imageAvailableListener, this.mBackgroundHandler);
     }
 
@@ -200,7 +208,17 @@ public class Camera2API {
         @Override
         public void onImageAvailable(ImageReader imageReader) {
             final Image image = imageReader.acquireNextImage();
-            mBackgroundHandler.post(new CaptureImage(image, previewCallback));
+
+            if(bCapture) {
+                mBackgroundHandler.post(new CaptureImage(image, callback));
+                bCapture = false;
+            }
+            else if(bObjectDetector){
+                mBackgroundHandler.post(new CaptureImage(image, detecteCallback));
+            }
+            else{
+                image.close();
+            }
         }
     };
 
@@ -273,6 +291,7 @@ public class Camera2API {
             Surface mSurface = new Surface(mSurfaceTexture);
             mCaptureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mCaptureRequestBuilder.addTarget(mSurface);
+            mCaptureRequestBuilder.addTarget(mImageReader.getSurface());
             mCameraDevice.createCaptureSession(Arrays.asList(mSurface, mImageReader.getSurface()), stateCallbackPreview, null);
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -355,18 +374,10 @@ public class Camera2API {
         }
     }
 
-    public void setLensFacing(int lensFacing) {
-        this.lensFacing = lensFacing;
-    }
-
-    public int getLensFacing() {
-        return lensFacing;
-    }
-
-    private CaptureImage.previewCallback previewCallback;
-    public void getCapture(CaptureImage.previewCallback previewCallback){
+    private CaptureImage.callback callback;
+    public void getCapture(CaptureImage.callback callback){
         try {
-            this.previewCallback = previewCallback;
+            this.callback = callback;
 
             this.mCaptureRequestBuilder.addTarget(this.mImageReader.getSurface());
             this.mPreviewSession.capture(this.mCaptureRequestBuilder.build(), null, null);
@@ -389,7 +400,7 @@ public class Camera2API {
             mCaptureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
             List<Surface> surfaces = new ArrayList<>();
 
-            // Set up Surface for the camera preview
+            // Set up Surface for the camera capture
             Surface previewSurface = new Surface(texture);
             surfaces.add(previewSurface);
             mCaptureRequestBuilder.addTarget(previewSurface);
@@ -400,7 +411,7 @@ public class Camera2API {
             mCaptureRequestBuilder.addTarget(recorderSurface);
 
             // Start a capture session
-            // Once the session starts, we can preview the UI and start recording
+            // Once the session starts, we can capture the UI and start recording
             mCameraDevice.createCaptureSession(surfaces, stateCallbackPreview, null);
 
             mMediaRecorder.start();
@@ -438,5 +449,33 @@ public class Camera2API {
                 Log.d(TAG, e.toString());
             }
         }
+    }
+
+    public void setLensFacing(int lensFacing) {
+        this.lensFacing = lensFacing;
+    }
+
+    public int getLensFacing() {
+        return lensFacing;
+    }
+
+    public Size getmPreviewSize() {
+        return mPreviewSize;
+    }
+
+    public void setbObjectDetector(boolean bObjectDetector) {
+        this.bObjectDetector = bObjectDetector;
+    }
+
+    public void setbFaceDetector(boolean bFaceDetector) {
+        this.bFaceDetector = bFaceDetector;
+    }
+
+    public void setbCapture(boolean bCapture) {
+        this.bCapture = bCapture;
+    }
+
+    public void setDetecteCallback(CaptureImage.callback detecteCallback) {
+        this.detecteCallback = detecteCallback;
     }
 }

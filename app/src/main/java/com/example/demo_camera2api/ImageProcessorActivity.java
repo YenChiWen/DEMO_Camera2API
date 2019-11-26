@@ -7,30 +7,18 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Rect;
-import android.graphics.RectF;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.util.Size;
-import android.view.OrientationEventListener;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.Switch;
 import android.widget.TextView;
-
-import com.example.demo_camera2api.tflite.Classifier;
-
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.LinkedList;
-import java.util.List;
 
 public class ImageProcessorActivity extends AppCompatActivity {
     Button btnLoadImage;
@@ -42,13 +30,14 @@ public class ImageProcessorActivity extends AppCompatActivity {
     TextView textView_minus;
     TextView textView_confidence;
 
-    Detector detector;
-    Paint paint;
+    Detector objectClassifier;
+    Parameter parameter;
+    DrawCanvas drawCanvas;
 
     Bitmap bmpOri;
     Bitmap bmpCanvas;
-    float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
-    boolean bDetector = false;
+    boolean bObjectDetector = false;
+    String TAG = "YEN_ImageProcess";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +55,9 @@ public class ImageProcessorActivity extends AppCompatActivity {
     }
 
     private void init(){
+        parameter = new Parameter();
+        drawCanvas = new DrawCanvas();
+
         btnLoadImage = findViewById(R.id.btn_load);
         btnSaveImage = findViewById(R.id.btn_save);
         switchFace = findViewById(R.id.switch_face);
@@ -84,22 +76,21 @@ public class ImageProcessorActivity extends AppCompatActivity {
         setTextView_confidence();
 
         bmpOri = ((BitmapDrawable)imageView.getDrawable()).getBitmap();
-
         tfModelInit();
-        paint = Parameter.setPaint(Color.RED, 6);
     }
 
     @SuppressLint("NewApi")
     private void tfModelInit(){
         Size previewSize = new Size(bmpOri.getWidth(),bmpOri.getHeight());
 
-        detector = new Detector(getAssets(),
+        objectClassifier = new Detector(getAssets(),
                 Parameter.TF_OD_MODEL,
                 Parameter.TF_OD_LABEL,
                 Parameter.TF_OD_INPUT_SIZE,
                 previewSize,
+                0,
                 Parameter.TF_OD_IS_QUANTIZED);
-        detector.create();
+        objectClassifier.create();
     }
 
     private void getPutExtra(){
@@ -114,31 +105,18 @@ public class ImageProcessorActivity extends AppCompatActivity {
     }
 
     public void setTextView_confidence() {
-        int confidence = (int) (MINIMUM_CONFIDENCE_TF_OD_API * 100);
+        int confidence = (int) (parameter.MINIMUM_CONFIDENCE_TF_OD_API * 100);
         textView_confidence.setText(String.valueOf(confidence));
     }
 
     private void ImageDetecte(){
-        List<Classifier.Recognition> results = detector.recognizeImage(bmpOri);
-        Log.d("YEN", "success");
-
-        Canvas canvas = new Canvas(bmpCanvas);
-
-        for(final Classifier.Recognition result : results){
-            RectF location = result.getLocation();
-            if(location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API){
-                detector.getCropToFrameTransform().mapRect(location);
-                result.setLocation(location);
-
-                canvas.drawRect(location, paint);
-            }
-        }
-
+        drawCanvas.setMappedRecognitions(parameter.objectDetector(objectClassifier, bmpOri));
+        drawCanvas.drawBitmap(bmpCanvas);
         imageView.setImageBitmap(bmpCanvas);
     }
 
     private void reDetecte(){
-        if(bDetector){
+        if(bObjectDetector){
             imageView.setImageBitmap(bmpOri);
             bmpCanvas = bmpOri.copy(Bitmap.Config.ARGB_8888, true);
             ImageDetecte();
@@ -170,7 +148,7 @@ public class ImageProcessorActivity extends AppCompatActivity {
         @RequiresApi(api = Build.VERSION_CODES.KITKAT)
         @Override
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-            bDetector = isChecked;
+            bObjectDetector = isChecked;
             if(isChecked){
                 reDetecte();
             }
@@ -183,18 +161,29 @@ public class ImageProcessorActivity extends AppCompatActivity {
     View.OnClickListener listener_plus = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            MINIMUM_CONFIDENCE_TF_OD_API +=  0.1f;
-            setTextView_confidence();
-            reDetecte();
+            if(parameter.MINIMUM_CONFIDENCE_TF_OD_API < 1){
+                parameter.MINIMUM_CONFIDENCE_TF_OD_API +=  0.1f;
+                setTextView_confidence();
+                reDetecte();
+            }
+            else{
+                Log.d(TAG, "Confidence is over then 100%.");
+            }
         }
     };
 
     View.OnClickListener listener_minus = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            MINIMUM_CONFIDENCE_TF_OD_API -= 0.1f;
-            setTextView_confidence();
-            reDetecte();
+            if(parameter.MINIMUM_CONFIDENCE_TF_OD_API > 1E-2){
+                parameter.MINIMUM_CONFIDENCE_TF_OD_API -= 0.1f;
+                setTextView_confidence();
+                reDetecte();
+            }
+            else{
+                Log.d(TAG, "Confidence is less then 0%.");
+            }
+
         }
     };
 }

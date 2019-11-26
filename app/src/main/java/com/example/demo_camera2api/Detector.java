@@ -33,7 +33,7 @@ import java.util.Vector;
 
 @SuppressLint("NewApi")
 public class Detector implements Classifier {
-    private final String TAG = "Detector";
+    private final String TAG = "YEN_Detector";
     private AssetManager mAssetManager;
     private String mModelFile;
     private String mLabelFile;
@@ -56,6 +56,7 @@ public class Detector implements Classifier {
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
     private Bitmap mCropBitmap;
+    private Integer sensorOrientation;
 
 
 
@@ -64,12 +65,14 @@ public class Detector implements Classifier {
              final String labelFile,
              final Size inputSize,
              final Size previewSize,
+             final Integer orientation,
              final boolean isQuantized){
         this.mAssetManager = assetManager;
         this.mModelFile = modelFile;
         this.mLabelFile = labelFile;
         this.mInputSize = inputSize;
         this.mPreviewSize = previewSize;
+        this.sensorOrientation = orientation;
         this.mIsQuantized = isQuantized;
     }
 
@@ -88,6 +91,8 @@ public class Detector implements Classifier {
         outputClasses = new float[1][NUM_DETECTIONS];
         outputScores = new float[1][NUM_DETECTIONS];
         numDetections = new float[1];
+
+        Log.d(TAG, "create detector success.");
     }
 
     private boolean loadModel(){
@@ -102,6 +107,7 @@ public class Detector implements Classifier {
 
             mInterpreter = new Interpreter(mappedByteBuffer);
 
+            Log.d(TAG, "Load model file.");
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -121,6 +127,7 @@ public class Detector implements Classifier {
             }
             bufferedReader.close();
 
+            Log.d(TAG, "Load label file!");
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -148,7 +155,7 @@ public class Detector implements Classifier {
         frameToCropTransform = ImageUtils.getTransformationMatrix(
                 mPreviewSize.getWidth(), mPreviewSize.getHeight(),
                 mInputSize.getWidth(), mInputSize.getHeight(),
-                90,  false
+                sensorOrientation,  false
         );
 
         cropToFrameTransform = new Matrix();
@@ -161,9 +168,8 @@ public class Detector implements Classifier {
 
         final Canvas canvas = new Canvas(mCropBitmap);
         canvas.drawBitmap(bmp, frameToCropTransform, null);
-
-
         mCropBitmap.getPixels(mBmp2Pixel, 0, mCropBitmap.getWidth(), 0, 0, mCropBitmap.getWidth(), mCropBitmap.getHeight());
+
         mImageData.rewind();
         for(int i=0; i<mInputSize.getHeight(); i++) {
             for (int j = 0; j < mInputSize.getWidth(); j++) {
