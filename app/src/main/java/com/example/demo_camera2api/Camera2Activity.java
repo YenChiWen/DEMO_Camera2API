@@ -2,11 +2,11 @@ package com.example.demo_camera2api;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,12 +19,14 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class Camera2Activity extends AppCompatActivity {
@@ -36,8 +38,8 @@ public class Camera2Activity extends AppCompatActivity {
     OverlayView overlayView;
     Switch switchObject;
     Switch switchFace;
-    TextView textView_plus;
-    TextView textView_minus;
+    TextView textView_confidence_plus;
+    TextView textView_confidence_minus;
     TextView textView_confidence;
 
     int lens;
@@ -76,8 +78,8 @@ public class Camera2Activity extends AppCompatActivity {
         overlayView = findViewById(R.id.overlayView_camera2);
         switchObject = findViewById(R.id.switch_object);
         switchFace = findViewById(R.id.switch_face);
-        textView_plus = findViewById(R.id.textView_plus);
-        textView_minus = findViewById(R.id.textView_minus);
+        textView_confidence_plus = findViewById(R.id.textView_confidence_plus);
+        textView_confidence_minus = findViewById(R.id.textView_confidence_minus);
         textView_confidence = findViewById(R.id.textView_confidence);
 
         btnCapture.setOnClickListener(listenerCapture);
@@ -86,32 +88,43 @@ public class Camera2Activity extends AppCompatActivity {
         fabSync.setOnClickListener(listenerSync);
         switchFace.setOnCheckedChangeListener(listener_face);
         switchObject.setOnCheckedChangeListener(listener_object);
-        textView_plus.setOnClickListener(listener_plus);
-        textView_minus.setOnClickListener(listener_minus);
+        textView_confidence_plus.setOnClickListener(listener_confidence_plus);
+        textView_confidence_minus.setOnClickListener(listener_confidence_minus);
+        setTextView_confidence();
 
-        overlayView.addCallback(drawCanvas.drawCallback);
+        overlayView.addCallback(drawCanvas.drawObjectCallback);
     }
 
     @SuppressLint("NewApi")
-    private void tfModelInit(){
+    private void initTfModel(){
         Size previewSize = camera2.getmPreviewSize();
 
         objectClassifier = new Detector(getAssets(),
-                Parameter.TF_OD_MODEL,
-                Parameter.TF_OD_LABEL,
-                Parameter.TF_OD_INPUT_SIZE,
+                parameter.TF_OD_MODEL,
+                parameter.TF_OD_LABEL,
+                parameter.TF_OD_INPUT_SIZE,
                 previewSize,
                 90,
-                Parameter.TF_OD_IS_QUANTIZED);
+                parameter.NUM_DETECTIONS,
+                parameter.TF_OD_IS_QUANTIZED);
         objectClassifier.create();
     }
 
-    public void setTextView_confidence() {
+    private void initCamera(){
+        if(getIntent().getExtras() != null)
+            lens = getIntent().getExtras().getInt("lens");
+        camera2 = new Camera2API(Camera2Activity.this, textureView);
+        camera2.setLensFacing(lens);
+        camera2.init();
+        camera2.setObjectDetectorCallback(detectorCallback);
+
+        initTfModel();
+    }
+
+    private void setTextView_confidence() {
         int confidence = (int) (parameter.MINIMUM_CONFIDENCE_TF_OD_API * 100);
         textView_confidence.setText(String.valueOf(confidence));
     }
-
-
 
     View.OnClickListener listenerCapture = new View.OnClickListener() {
         @Override
@@ -125,6 +138,7 @@ public class Camera2Activity extends AppCompatActivity {
     View.OnClickListener listenerRecode = new View.OnClickListener(){
         @Override
         public void onClick(View v) {
+            overlayView.setVisibility(bRecode ? View.VISIBLE : View.INVISIBLE);
             if(bRecode){
                 bRecode = false;
                 camera2.stopRecordingVideo();
@@ -153,14 +167,7 @@ public class Camera2Activity extends AppCompatActivity {
         @SuppressLint("NewApi")
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-
-            if(getIntent().getExtras() != null)
-                lens = getIntent().getExtras().getInt("lens");
-            camera2 = new Camera2API(Camera2Activity.this, textureView);
-            camera2.setLensFacing(lens);
-            camera2.init();
-
-            tfModelInit();
+            initCamera();
         }
 
         @Override
@@ -179,20 +186,12 @@ public class Camera2Activity extends AppCompatActivity {
         }
     };
 
-    CompoundButton.OnCheckedChangeListener listener_face = new CompoundButton.OnCheckedChangeListener() {
-        @Override
-        public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-            if(camera2 != null) {
-                camera2.setbFaceDetector(isChecked);
-            }
-        }
-    };
-
     CaptureImage.callback detectorCallback = new CaptureImage.callback() {
         @Override
         public void capture(Bitmap bmp) {
             Log.d(TAG, "Detector.");
             drawCanvas.setMappedRecognitions(parameter.objectDetector(objectClassifier, bmp));
+            drawCanvas.setDetector(objectClassifier);
             overlayView.postInvalidate();
         }
     };
@@ -202,20 +201,40 @@ public class Camera2Activity extends AppCompatActivity {
         public void capture(Bitmap bmp) {
             Log.d(TAG, "Capture.");
             camera2.setbCapture(false);
+
+            ByteArrayOutputStream bs = new ByteArrayOutputStream();
+            bmp.compress(Bitmap.CompressFormat.JPEG, 100, bs);
+            byte[] bitmapByte = bs.toByteArray();
+
+            Intent intent = new Intent(Camera2Activity.this, ImageProcessorActivity.class);
+            intent.putExtra("CaptureImage", bitmapByte);
+            startActivity(intent);
+        }
+    };
+
+    CompoundButton.OnCheckedChangeListener listener_face = new CompoundButton.OnCheckedChangeListener() {
+        @Override
+        public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            if(camera2 != null) {
+                camera2.setbFaceDetector(isChecked);
+            }
         }
     };
 
     CompoundButton.OnCheckedChangeListener listener_object = new CompoundButton.OnCheckedChangeListener() {
         @Override
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            ConstraintLayout layout_ob_confidence = findViewById(R.id.layout_ob_confidence);
+
             if(camera2 != null) {
-                camera2.setDetecteCallback(detectorCallback);
                 camera2.setbObjectDetector(isChecked);
+                overlayView.setVisibility(isChecked ? View.VISIBLE : View.INVISIBLE);
+                layout_ob_confidence.setVisibility(isChecked ? View.VISIBLE : View.GONE);
             }
         }
     };
 
-    View.OnClickListener listener_plus = new View.OnClickListener() {
+    View.OnClickListener listener_confidence_plus = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             if(parameter.MINIMUM_CONFIDENCE_TF_OD_API < 1){
@@ -223,12 +242,12 @@ public class Camera2Activity extends AppCompatActivity {
                 setTextView_confidence();
             }
             else{
-                Log.d(TAG, "Confidence is over then 100%.");
+                Log.d(TAG, "Confidence is over than 100%.");
             }
         }
     };
 
-    View.OnClickListener listener_minus = new View.OnClickListener() {
+    View.OnClickListener listener_confidence_minus = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             if(parameter.MINIMUM_CONFIDENCE_TF_OD_API > 1E-2){
@@ -236,7 +255,7 @@ public class Camera2Activity extends AppCompatActivity {
                 setTextView_confidence();
             }
             else{
-                Log.d(TAG, "Confidence is less then 0%.");
+                Log.d(TAG, "Confidence is less than 0%.");
             }
         }
     };

@@ -52,11 +52,11 @@ public class Detector implements Classifier {
     private Interpreter mInterpreter;
     private ByteBuffer mImageData;
 
-    private static final int NUM_DETECTIONS = 10;
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
     private Bitmap mCropBitmap;
     private Integer sensorOrientation;
+    private int NUM_DETECTIONS;
 
 
 
@@ -66,6 +66,7 @@ public class Detector implements Classifier {
              final Size inputSize,
              final Size previewSize,
              final Integer orientation,
+             final int NUM_DETECTIONS,
              final boolean isQuantized){
         this.mAssetManager = assetManager;
         this.mModelFile = modelFile;
@@ -73,13 +74,14 @@ public class Detector implements Classifier {
         this.mInputSize = inputSize;
         this.mPreviewSize = previewSize;
         this.sensorOrientation = orientation;
+        this.NUM_DETECTIONS = NUM_DETECTIONS;
         this.mIsQuantized = isQuantized;
     }
 
     public void create(){
-        boolean blabel = loadLabel();
-        boolean bmodel = loadModel();
-        if(!blabel || !bmodel)
+        boolean bLabel = loadLabel();
+        boolean bModel = loadModel();
+        if(!bLabel || !bModel)
             return;
 
         setInputDataSize();
@@ -204,11 +206,11 @@ public class Detector implements Classifier {
 
         final ArrayList<Recognition> recognitions = new ArrayList<>(NUM_DETECTIONS);
         for (int i = 0; i < NUM_DETECTIONS; ++i) {
-            final RectF detection =
+            final RectF location =
                 new RectF(
-                    outputLocations[0][i][1] * mInputSize.getHeight(),
+                    outputLocations[0][i][1] * mInputSize.getWidth(),
                     outputLocations[0][i][0] * mInputSize.getHeight(),
-                    outputLocations[0][i][3] * mInputSize.getHeight(),
+                    outputLocations[0][i][3] * mInputSize.getWidth(),
                     outputLocations[0][i][2] * mInputSize.getHeight());
             // SSD Mobilenet V1 Model assumes class 0 is background class
             // in label file and class labels start from 1 to number_of_classes+1,
@@ -219,7 +221,7 @@ public class Detector implements Classifier {
                     "" + i,
                     mLabel.get((int) outputClasses[0][i] + labelOffset),
                     outputScores[0][i],
-                    detection));
+                    location));
         }
         return recognitions;
     }
@@ -253,5 +255,13 @@ public class Detector implements Classifier {
     public void setUseNNAPI(boolean isChecked) {
         if(mInterpreter != null)
             mInterpreter.setUseNNAPI(isChecked);
+    }
+
+    public Integer getSensorOrientation() {
+        return sensorOrientation;
+    }
+
+    public Size getmPreviewSize() {
+        return mPreviewSize;
     }
 }

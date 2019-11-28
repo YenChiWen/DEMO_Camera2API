@@ -1,12 +1,16 @@
 package com.example.demo_camera2api;
 
+import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.util.Log;
 
 import com.example.demo_camera2api.tflite.Classifier;
+import com.example.demo_camera2api.tflite.ImageUtils;
 
 import java.text.DecimalFormat;
 import java.util.LinkedList;
@@ -14,6 +18,7 @@ import java.util.List;
 
 public class DrawCanvas {
     private Paint paint_rect, paint_text;
+    private Detector detector;
     private int text_size = 30;
     private int margin = 5;
     private String TAG = "YEN_DrawCanvas";
@@ -37,7 +42,8 @@ public class DrawCanvas {
             Color.parseColor("#0D0068")
     };
 
-    List<Classifier.Recognition> mappedRecognitions = new LinkedList<Classifier.Recognition>();
+    private List<Classifier.Recognition> mappedRecognitions = new LinkedList<Classifier.Recognition>();
+    private List<Classifier.Recognition> screenRects = new LinkedList<Classifier.Recognition>();
 
     DrawCanvas(){
         paint_rect = setPaint(Color.RED, 6);
@@ -59,7 +65,7 @@ public class DrawCanvas {
         draw(canvas);
     }
 
-    OverlayView.DrawCallback drawCallback = new OverlayView.DrawCallback() {
+    OverlayView.DrawCallback drawObjectCallback = new OverlayView.DrawCallback() {
         @Override
         public void drawCallback(Canvas canvas) {
             draw(canvas);
@@ -67,6 +73,8 @@ public class DrawCanvas {
     };
 
     private void draw(Canvas canvas){
+        ConvertRect(canvas);
+
         int iCount = 0;
         for(Classifier.Recognition result : mappedRecognitions){
             int color = DrawCanvas.COLORS[iCount++];
@@ -81,6 +89,33 @@ public class DrawCanvas {
         }
     }
 
+    @SuppressLint("NewApi")
+    public void ConvertRect(Canvas canvas){
+        if(this.detector == null){
+            return;
+        }
+
+        boolean rotated = this.detector.getSensorOrientation() % 180 == 90;
+        int iWidth = this.detector.getmPreviewSize().getWidth();
+        int iHeight = this.detector.getmPreviewSize().getHeight();
+        float multiplier = Math.min(
+                canvas.getHeight() / (float)(rotated ? iWidth : iHeight),
+                canvas.getWidth() / (float) (rotated ? iHeight : iWidth));
+
+        Matrix frameToCanvasMatrix = ImageUtils.getTransformationMatrix(
+                iWidth, iHeight,
+                (int)(multiplier * (rotated ? iHeight : iWidth)), (int)(multiplier * (rotated ? iWidth : iHeight)),
+                this.detector.getSensorOrientation(), false);
+
+        for(Classifier.Recognition result : mappedRecognitions){
+            RectF srcLocation = result.getLocation();
+            RectF dstLocation = new RectF();
+            frameToCanvasMatrix.mapRect(dstLocation, srcLocation);
+            result.setLocation(dstLocation);
+            screenRects.add(result);
+        }
+    }
+
     public Paint getPaint_rect() {
         return paint_rect;
     }
@@ -91,5 +126,9 @@ public class DrawCanvas {
 
     public void setMappedRecognitions(List<Classifier.Recognition> mappedRecognitions) {
         this.mappedRecognitions = mappedRecognitions;
+    }
+
+    public void setDetector(Detector detector) {
+        this.detector = detector;
     }
 }

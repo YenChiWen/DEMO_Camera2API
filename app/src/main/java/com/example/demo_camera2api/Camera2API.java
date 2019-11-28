@@ -6,8 +6,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
-import android.hardware.Camera;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -74,8 +74,7 @@ public class Camera2API {
     // detector
     private boolean bObjectDetector = false;
     private boolean bFaceDetector = false;
-    private Runnable imageConverter;
-    private CaptureImage.callback detecteCallback;
+    private CaptureImage.callback objectDetectorCallback;
 
     Camera2API(Context context, TextureView textureView){
         this.mContext = context;
@@ -83,10 +82,10 @@ public class Camera2API {
         this.mWidth = textureView.getWidth();
         this.mHeight = textureView.getHeight();
         this.mCameraManager = (CameraManager) this.mContext.getSystemService(Context.CAMERA_SERVICE);
-        startBackgroundThread();
     }
 
     public void init(){
+        startBackgroundThread();
         this.cameraRegister(this.lensFacing);
         this.cameraOpen();
     }
@@ -214,7 +213,7 @@ public class Camera2API {
                 bCapture = false;
             }
             else if(bObjectDetector){
-                mBackgroundHandler.post(new CaptureImage(image, detecteCallback));
+                mBackgroundHandler.post(new CaptureImage(image, objectDetectorCallback));
             }
             else{
                 image.close();
@@ -475,7 +474,7 @@ public class Camera2API {
         this.bCapture = bCapture;
     }
 
-    public void setDetecteCallback(CaptureImage.callback detecteCallback) {
-        this.detecteCallback = detecteCallback;
+    public void setObjectDetectorCallback(CaptureImage.callback objectDetectorCallback) {
+        this.objectDetectorCallback = objectDetectorCallback;
     }
 }

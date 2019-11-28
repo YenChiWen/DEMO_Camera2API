@@ -9,12 +9,16 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 
 import com.example.demo_camera2api.tflite.Classifier;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.text.DecimalFormat;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -36,15 +40,16 @@ public class Parameter {
 
 
     //
-    public static final String TF_OD_MODEL = "detect.tflite";
-    public static final String TF_OD_LABEL = "labelmap.txt";
+    public final String TF_OD_MODEL = "detect.tflite";
+    public final String TF_OD_LABEL = "labelmap.txt";
     public static final Size TF_OD_INPUT_SIZE = new Size(300,300);
-    public static final boolean TF_OD_IS_QUANTIZED = true;
+    public final boolean TF_OD_IS_QUANTIZED = true;
     public static final int NUM_THREADS = 4;
 
     public static final float IMAGE_MEAN = 128.0f;
     public static final float IMAGE_STD = 128.0f;
     public float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
+    public int NUM_DETECTIONS = 10;
 
 
     //

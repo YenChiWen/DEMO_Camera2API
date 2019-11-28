@@ -2,12 +2,12 @@ package com.example.demo_camera2api;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Paint;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,8 +26,8 @@ public class ImageProcessorActivity extends AppCompatActivity {
     Switch switchFace;
     Switch switchObject;
     ImageView imageView;
-    TextView textView_plus;
-    TextView textView_minus;
+    TextView textView_confidence_plus;
+    TextView textView_confidence_minus;
     TextView textView_confidence;
 
     Detector objectClassifier;
@@ -36,7 +36,6 @@ public class ImageProcessorActivity extends AppCompatActivity {
 
     Bitmap bmpOri;
     Bitmap bmpCanvas;
-    boolean bObjectDetector = false;
     String TAG = "YEN_ImageProcess";
 
     @Override
@@ -45,13 +44,6 @@ public class ImageProcessorActivity extends AppCompatActivity {
         setContentView(R.layout.activity_image_processor);
 
         init();
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-
-        getPutExtra();
     }
 
     private void init(){
@@ -63,33 +55,36 @@ public class ImageProcessorActivity extends AppCompatActivity {
         switchFace = findViewById(R.id.switch_face);
         switchObject = findViewById(R.id.switch_object);
         imageView = findViewById(R.id.imageView);
-        textView_plus = findViewById(R.id.textView_plus);
-        textView_minus = findViewById(R.id.textView_minus);
+        textView_confidence_plus = findViewById(R.id.textView_confidence_plus);
+        textView_confidence_minus = findViewById(R.id.textView_confidence_minus);
         textView_confidence = findViewById(R.id.textView_confidence);
 
         btnLoadImage.setOnClickListener(listener_load);
         btnSaveImage.setOnClickListener(listener_save);
         switchFace.setOnCheckedChangeListener(listener_face);
         switchObject.setOnCheckedChangeListener(listener_object);
-        textView_plus.setOnClickListener(listener_plus);
-        textView_minus.setOnClickListener(listener_minus);
+        textView_confidence_plus.setOnClickListener(listener_confidence_plus);
+        textView_confidence_minus.setOnClickListener(listener_confidence_minus);
+
         setTextView_confidence();
 
+        getPutExtra();
         bmpOri = ((BitmapDrawable)imageView.getDrawable()).getBitmap();
-        tfModelInit();
+        initTfModel();
     }
 
     @SuppressLint("NewApi")
-    private void tfModelInit(){
+    private void initTfModel(){
         Size previewSize = new Size(bmpOri.getWidth(),bmpOri.getHeight());
 
         objectClassifier = new Detector(getAssets(),
-                Parameter.TF_OD_MODEL,
-                Parameter.TF_OD_LABEL,
-                Parameter.TF_OD_INPUT_SIZE,
+                parameter.TF_OD_MODEL,
+                parameter.TF_OD_LABEL,
+                parameter.TF_OD_INPUT_SIZE,
                 previewSize,
                 0,
-                Parameter.TF_OD_IS_QUANTIZED);
+                parameter.NUM_DETECTIONS,
+                parameter.TF_OD_IS_QUANTIZED);
         objectClassifier.create();
     }
 
@@ -104,7 +99,7 @@ public class ImageProcessorActivity extends AppCompatActivity {
         }
     }
 
-    public void setTextView_confidence() {
+    private void setTextView_confidence() {
         int confidence = (int) (parameter.MINIMUM_CONFIDENCE_TF_OD_API * 100);
         textView_confidence.setText(String.valueOf(confidence));
     }
@@ -116,11 +111,9 @@ public class ImageProcessorActivity extends AppCompatActivity {
     }
 
     private void reDetecte(){
-        if(bObjectDetector){
-            imageView.setImageBitmap(bmpOri);
-            bmpCanvas = bmpOri.copy(Bitmap.Config.ARGB_8888, true);
-            ImageDetecte();
-        }
+        imageView.setImageBitmap(bmpOri);
+        bmpCanvas = bmpOri.copy(Bitmap.Config.ARGB_8888, true);
+        ImageDetecte();
     }
 
     View.OnClickListener listener_load = new View.OnClickListener() {
@@ -148,17 +141,20 @@ public class ImageProcessorActivity extends AppCompatActivity {
         @RequiresApi(api = Build.VERSION_CODES.KITKAT)
         @Override
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-            bObjectDetector = isChecked;
+            ConstraintLayout layout_ob_confidence = findViewById(R.id.layout_ob_confidence);
+
             if(isChecked){
+                layout_ob_confidence.setVisibility(View.VISIBLE);
                 reDetecte();
             }
             else{
+                layout_ob_confidence.setVisibility(View.GONE);
                 imageView.setImageBitmap(bmpOri);
             }
         }
     };
 
-    View.OnClickListener listener_plus = new View.OnClickListener() {
+    View.OnClickListener listener_confidence_plus = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             if(parameter.MINIMUM_CONFIDENCE_TF_OD_API < 1){
@@ -172,7 +168,7 @@ public class ImageProcessorActivity extends AppCompatActivity {
         }
     };
 
-    View.OnClickListener listener_minus = new View.OnClickListener() {
+    View.OnClickListener listener_confidence_minus = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
             if(parameter.MINIMUM_CONFIDENCE_TF_OD_API > 1E-2){
