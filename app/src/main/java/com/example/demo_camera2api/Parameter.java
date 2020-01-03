@@ -28,6 +28,8 @@ import java.util.Map;
 @SuppressLint("NewApi")
 public class Parameter {
     // main activity
+    private FPSCalculator fpsCalculator = new FPSCalculator("detector_fps");
+
     private static Map<String, String> SOURCE = new HashMap<String, String>();
     public static Map<String, String> getSOURCE() {
         SOURCE.put("-1", "IMAGE");
@@ -40,16 +42,16 @@ public class Parameter {
 
 
     //
-    public final String TF_OD_MODEL = "detect.tflite";
+    public final String TF_OD_MODEL = "detect_ori.tflite";
     public final String TF_OD_LABEL = "labelmap.txt";
     public static final Size TF_OD_INPUT_SIZE = new Size(300,300);
     public final boolean TF_OD_IS_QUANTIZED = true;
-    public static final int NUM_THREADS = 4;
 
     public static final float IMAGE_MEAN = 128.0f;
     public static final float IMAGE_STD = 128.0f;
     public float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
     public int NUM_DETECTIONS = 10;
+    public int NUM_THREAD = 1;
 
 
     //
@@ -72,6 +74,8 @@ public class Parameter {
                 mappedRecognitions.add(result);
             }
         }
+
+        fpsCalculator.calculate();
 
         return mappedRecognitions;
     }

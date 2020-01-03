@@ -31,7 +31,9 @@ public interface Classifier {
 
   void setNumThreads(int num_threads);
 
-  void setUseNNAPI(boolean isChecked);
+  void useNNAPI();
+  void useGpu();
+  void useCpu();
 
   /** An immutable result returned by a Classifier describing what was recognized. */
   public class Recognition {

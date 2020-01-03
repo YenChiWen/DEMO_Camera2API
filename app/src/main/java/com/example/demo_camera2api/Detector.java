@@ -15,6 +15,8 @@ import com.example.demo_camera2api.tflite.Classifier;
 import com.example.demo_camera2api.tflite.ImageUtils;
 
 import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.gpu.GpuDelegate;
+import org.tensorflow.lite.nnapi.NnApiDelegate;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -88,7 +90,6 @@ public class Detector implements Classifier {
         initMatrix();
         mBmp2Pixel = new int[mInputSize.getWidth()*mInputSize.getHeight()];
 
-        mInterpreter.setNumThreads(Parameter.NUM_THREADS);
         outputLocations = new float[1][NUM_DETECTIONS][4];
         outputClasses = new float[1][NUM_DETECTIONS];
         outputScores = new float[1][NUM_DETECTIONS];
@@ -247,14 +248,36 @@ public class Detector implements Classifier {
 
     @Override
     public void setNumThreads(int num_threads) {
-        if(mInterpreter != null)
-            mInterpreter.setNumThreads(num_threads);
+        tfliteOptions.setNumThreads(num_threads);
+        reCreateInterpreter();
+    }
+
+    Interpreter.Options tfliteOptions = new Interpreter.Options();
+    @Override
+    public void useNNAPI() {
+        NnApiDelegate nnApiDelegate = new NnApiDelegate();
+        tfliteOptions.addDelegate(nnApiDelegate);
+        reCreateInterpreter();
     }
 
     @Override
-    public void setUseNNAPI(boolean isChecked) {
-        if(mInterpreter != null)
-            mInterpreter.setUseNNAPI(isChecked);
+    public void useGpu() {
+        GpuDelegate gpuDelegate = new GpuDelegate();
+        tfliteOptions.addDelegate(gpuDelegate);
+        reCreateInterpreter();
+    }
+
+    @Override
+    public void useCpu() {
+        tfliteOptions = new Interpreter.Options();
+        reCreateInterpreter();
+    }
+
+    private void reCreateInterpreter(){
+        if(this.mInterpreter != null){
+            this.mInterpreter.close();
+            loadModel();
+        }
     }
 
     public Integer getSensorOrientation() {

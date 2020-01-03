@@ -23,10 +23,6 @@ import android.widget.TextView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class Camera2Activity extends AppCompatActivity {
@@ -41,6 +37,9 @@ public class Camera2Activity extends AppCompatActivity {
     TextView textView_confidence_plus;
     TextView textView_confidence_minus;
     TextView textView_confidence;
+    TextView textView_thread_plus;
+    TextView textView_thread_minus;
+    TextView textView_thread;
 
     int lens;
     String TAG = "YEN_camera2Activity";
@@ -81,6 +80,9 @@ public class Camera2Activity extends AppCompatActivity {
         textView_confidence_plus = findViewById(R.id.textView_confidence_plus);
         textView_confidence_minus = findViewById(R.id.textView_confidence_minus);
         textView_confidence = findViewById(R.id.textView_confidence);
+        textView_thread_plus = findViewById(R.id.textView_thread_plus);
+        textView_thread_minus = findViewById(R.id.textView_thread_minus);
+        textView_thread = findViewById(R.id.textView_thread);
 
         btnCapture.setOnClickListener(listenerCapture);
         btnRecode.setOnClickListener(listenerRecode);
@@ -90,7 +92,10 @@ public class Camera2Activity extends AppCompatActivity {
         switchObject.setOnCheckedChangeListener(listener_object);
         textView_confidence_plus.setOnClickListener(listener_confidence_plus);
         textView_confidence_minus.setOnClickListener(listener_confidence_minus);
+        textView_thread_plus.setOnClickListener(listener_thread_plus);
+        textView_thread_minus.setOnClickListener(listener_thread_minus);
         setTextView_confidence();
+        setTextView_thread();
 
         overlayView.addCallback(drawCanvas.drawObjectCallback);
     }
@@ -124,6 +129,10 @@ public class Camera2Activity extends AppCompatActivity {
     private void setTextView_confidence() {
         int confidence = (int) (parameter.MINIMUM_CONFIDENCE_TF_OD_API * 100);
         textView_confidence.setText(String.valueOf(confidence));
+    }
+
+    private void setTextView_thread() {
+        textView_thread.setText(String.valueOf(parameter.NUM_THREAD));
     }
 
     View.OnClickListener listenerCapture = new View.OnClickListener() {
@@ -256,6 +265,32 @@ public class Camera2Activity extends AppCompatActivity {
             }
             else{
                 Log.d(TAG, "Confidence is less than 0%.");
+            }
+        }
+    };
+
+    View.OnClickListener listener_thread_plus = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            if(parameter.NUM_THREAD < 10){
+                parameter.NUM_THREAD +=  1;
+                setTextView_thread();
+            }
+            else{
+                Log.d(TAG, "Thread is over than 10.");
+            }
+        }
+    };
+
+    View.OnClickListener listener_thread_minus = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            if(parameter.NUM_THREAD > 1){
+                parameter.NUM_THREAD -= 1;
+                setTextView_thread();
+            }
+            else{
+                Log.d(TAG, "Thread is less than 1.");
             }
         }
     };
