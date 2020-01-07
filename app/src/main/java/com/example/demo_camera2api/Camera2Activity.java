@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.Layout;
 import android.util.Log;
 import android.util.Size;
 import android.view.TextureView;
@@ -17,6 +18,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -25,28 +27,37 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.io.ByteArrayOutputStream;
 
+import static com.example.demo_camera2api.R.id.layout_process;
+import static com.example.demo_camera2api.R.id.masked;
+
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class Camera2Activity extends AppCompatActivity {
 
+    // view
     Button btnCapture;
     Button btnRecode;
+    Button btn_CPU;
+    Button btn_GPU;
+    Button btn_NNAPI;
+    LinearLayout layoutProcess;
     FloatingActionButton fabSync;
     TextureView textureView;
-    OverlayView overlayView;
-    Switch switchObject;
-    Switch switchFace;
     TextView textView_confidence_plus;
     TextView textView_confidence_minus;
     TextView textView_confidence;
     TextView textView_thread_plus;
     TextView textView_thread_minus;
     TextView textView_thread;
-    Button btn_CPU;
-    Button btn_GPU;
-    Button btn_NNAPI;
+    OverlayView overlayView;
+    Switch switchObject;
+    Switch switchFace;
+    Switch switchQuant;
+
+    // variable
     int lens;
     String TAG = "YEN_camera2Activity";
 
+    // class
     Camera2API camera2;
     Detector objectClassifier;
     Parameter parameter;
@@ -75,20 +86,23 @@ public class Camera2Activity extends AppCompatActivity {
 
         btnCapture = findViewById(R.id.btn_capture);
         btnRecode = findViewById(R.id.btn_record);
+        btn_CPU = findViewById(R.id.btn_cpu);
+        btn_GPU = findViewById(R.id.btn_GPU);
+        btn_NNAPI = findViewById(R.id.btn_nnapi);
+        layoutProcess = findViewById(layout_process);
         textureView = findViewById(R.id.textureView);
-        fabSync = findViewById(R.id.fab_sync);
         overlayView = findViewById(R.id.overlayView_camera2);
+        fabSync = findViewById(R.id.fab_sync);
         switchObject = findViewById(R.id.switch_object);
         switchFace = findViewById(R.id.switch_face);
+        switchQuant = findViewById(R.id.switch_quant);
         textView_confidence_plus = findViewById(R.id.textView_confidence_plus);
         textView_confidence_minus = findViewById(R.id.textView_confidence_minus);
         textView_confidence = findViewById(R.id.textView_confidence);
         textView_thread_plus = findViewById(R.id.textView_thread_plus);
         textView_thread_minus = findViewById(R.id.textView_thread_minus);
         textView_thread = findViewById(R.id.textView_thread);
-        btn_CPU = findViewById(R.id.btn_cpu);
-        btn_GPU = findViewById(R.id.btn_GPU);
-        btn_NNAPI = findViewById(R.id.btn_nnapi);
+
 
         btnCapture.setOnClickListener(listenerCapture);
         btnRecode.setOnClickListener(listenerRecode);
@@ -96,6 +110,7 @@ public class Camera2Activity extends AppCompatActivity {
         fabSync.setOnClickListener(listenerSync);
         switchFace.setOnCheckedChangeListener(listener_face);
         switchObject.setOnCheckedChangeListener(listener_object);
+        switchQuant.setOnCheckedChangeListener(listener_quant);
         textView_confidence_plus.setOnClickListener(listener_confidence_plus);
         textView_confidence_minus.setOnClickListener(listener_confidence_minus);
         textView_thread_plus.setOnClickListener(listener_thread_plus);
@@ -113,14 +128,26 @@ public class Camera2Activity extends AppCompatActivity {
     private void initTfModel(){
         Size previewSize = camera2.getmPreviewSize();
 
-        objectClassifier = new Detector(getAssets(),
-                parameter.TF_OD_MODEL,
-                parameter.TF_OD_LABEL,
-                parameter.TF_OD_INPUT_SIZE,
-                previewSize,
-                90,
-                parameter.NUM_DETECTIONS,
-                parameter.TF_OD_IS_QUANTIZED);
+        if(parameter.TF_OD_IS_QUANTIZED){
+            objectClassifier = new Detector(getAssets(),
+                    parameter.TF_OD_MODEL_QUANT,
+                    parameter.TF_OD_LABEL,
+                    parameter.TF_OD_INPUT_SIZE,
+                    previewSize,
+                    90,
+                    parameter.NUM_DETECTIONS,
+                    parameter.TF_OD_IS_QUANTIZED);
+        }
+        else{
+            objectClassifier = new Detector(getAssets(),
+                    parameter.TF_OD_MODEL,
+                    parameter.TF_OD_LABEL,
+                    parameter.TF_OD_INPUT_SIZE,
+                    previewSize,
+                    90,
+                    parameter.NUM_DETECTIONS,
+                    parameter.TF_OD_IS_QUANTIZED);
+        }
         objectClassifier.create();
     }
 
@@ -142,6 +169,11 @@ public class Camera2Activity extends AppCompatActivity {
 
     private void setTextView_thread() {
         textView_thread.setText(String.valueOf(parameter.NUM_THREAD));
+
+        if(objectClassifier != null){
+            objectClassifier.setNumThreads(parameter.NUM_THREAD);
+            camera2.setDetector(objectClassifier);
+        }
     }
 
     View.OnClickListener listenerCapture = new View.OnClickListener() {
@@ -244,15 +276,26 @@ public class Camera2Activity extends AppCompatActivity {
     CompoundButton.OnCheckedChangeListener listener_object = new CompoundButton.OnCheckedChangeListener() {
         @Override
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-            ConstraintLayout layout_ob_confidence = findViewById(R.id.layout_ob_confidence);
-
             if(camera2 != null) {
                 Toast.makeText(Camera2Activity.this, "object detect", Toast.LENGTH_LONG).show();
 
                 camera2.setbObjectDetector(isChecked);
                 overlayView.setVisibility(isChecked ? View.VISIBLE : View.INVISIBLE);
-                layout_ob_confidence.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+
+                parameter.enableDisableView(layoutProcess, isChecked);
             }
+        }
+    };
+
+    CompoundButton.OnCheckedChangeListener listener_quant = new CompoundButton.OnCheckedChangeListener() {
+        @Override
+        public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            Toast.makeText(Camera2Activity.this, isChecked?"using quant model":"using float model", Toast.LENGTH_LONG).show();
+            parameter.TF_OD_IS_QUANTIZED = isChecked;
+
+            camera2.setbObjectDetector(false);
+            initTfModel();
+            camera2.setDetector(objectClassifier);
         }
     };
 
@@ -317,9 +360,8 @@ public class Camera2Activity extends AppCompatActivity {
         public void onClick(View view) {
             Log.d(TAG, "listener_usingCpu: ");
 
-            camera2.setbObjectDetector(false);
             objectClassifier.useCpu();
-            camera2.setbObjectDetector(true);
+            camera2.setDetector(objectClassifier);
 
             Toast.makeText(Camera2Activity.this, "using CPU", Toast.LENGTH_LONG).show();
         }
@@ -330,9 +372,8 @@ public class Camera2Activity extends AppCompatActivity {
         public void onClick(View view) {
             Log.d(TAG, "listener_usingGpu: ");
 
-            camera2.setbObjectDetector(false);
             objectClassifier.useGpu();
-            camera2.setbObjectDetector(true);
+            camera2.setDetector(objectClassifier);
 
             Toast.makeText(Camera2Activity.this, "using GPU", Toast.LENGTH_LONG).show();
         }
@@ -343,9 +384,8 @@ public class Camera2Activity extends AppCompatActivity {
         public void onClick(View view) {
             Log.d(TAG, "listener_usingNNAPI: ");
 
-            camera2.setbObjectDetector(false);
             objectClassifier.useNNAPI();
-            camera2.setbObjectDetector(true);
+            camera2.setDetector(objectClassifier);
 
             Toast.makeText(Camera2Activity.this, "using NNAPI", Toast.LENGTH_LONG).show();
         }

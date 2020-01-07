@@ -6,7 +6,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
-import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -71,6 +70,8 @@ public class Camera2API {
     private static String TAG = "YEN_Camera2API";
 
     // detector
+    private Detector detector;
+    private boolean bUpdateModel = false;
     private boolean bObjectDetector = false;
     private boolean bFaceDetector = false;
     private CaptureImage.callback objectDetectorCallback;
@@ -215,6 +216,17 @@ public class Camera2API {
                 mBackgroundHandler.post(new CaptureImage(image, objectDetectorCallback));
             }
             else{
+                if(bUpdateModel){
+                    mBackgroundHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            detector.reCreateInterpreter();
+                        }
+                    });
+
+                    bUpdateModel = false;
+                    bObjectDetector = true;
+                }
                 image.close();
             }
         }
@@ -320,8 +332,6 @@ public class Camera2API {
         @Override
         public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
             super.onCaptureCompleted(session, request, result);
-
-            Parameter.fpsCalculator.calculate();
         }
     };
 
@@ -475,5 +485,11 @@ public class Camera2API {
 
     public void setObjectDetectorCallback(CaptureImage.callback objectDetectorCallback) {
         this.objectDetectorCallback = objectDetectorCallback;
+    }
+
+    public void setDetector(Detector detector){
+        this.bObjectDetector = false;
+        this.bUpdateModel = true;
+        this.detector = detector;
     }
 }

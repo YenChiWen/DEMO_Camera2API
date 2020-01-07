@@ -1,6 +1,5 @@
 package com.example.demo_camera2api;
 
-
 import android.annotation.SuppressLint;
 import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
@@ -54,6 +53,8 @@ public class Detector implements Classifier {
     private Interpreter mInterpreter;
     private ByteBuffer mImageData;
     Interpreter.Options tfliteOptions = new Interpreter.Options();
+    NnApiDelegate nnApiDelegate = new NnApiDelegate();
+    GpuDelegate gpuDelegate = new GpuDelegate();
     MappedByteBuffer mappedByteBuffer;
 
     private Matrix frameToCropTransform;
@@ -109,7 +110,6 @@ public class Detector implements Classifier {
             long startOffset = fileDescriptor.getStartOffset();
             long declaredLength = fileDescriptor.getDeclaredLength();
             mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
-
             mInterpreter = new Interpreter(mappedByteBuffer, tfliteOptions);
 
             Log.d(TAG, "Load model file.");
@@ -245,41 +245,54 @@ public class Detector implements Classifier {
 
     @Override
     public void close() {
-        mInterpreter.close();
+        if(mInterpreter != null){
+            mInterpreter.close();
+            mInterpreter = null;
+        }
 
+        if(nnApiDelegate != null){
+            nnApiDelegate.close();
+            nnApiDelegate = null;
+        }
+
+        if(gpuDelegate != null){
+            gpuDelegate.close();
+            gpuDelegate = null;
+        }
     }
 
     @Override
     public void setNumThreads(int num_threads) {
-        tfliteOptions.setNumThreads(num_threads);
-        reCreateInterpreter();
+        tfliteOptions.setNumThreads(Parameter.NUM_THREAD);
     }
 
     @Override
     public void useNNAPI() {
-        NnApiDelegate nnApiDelegate = new NnApiDelegate();
+        tfliteOptions = new Interpreter.Options();
+        tfliteOptions.setNumThreads(Parameter.NUM_THREAD);
         tfliteOptions.addDelegate(nnApiDelegate);
-        reCreateInterpreter();
     }
 
     @Override
     public void useGpu() {
-        GpuDelegate gpuDelegate = new GpuDelegate();
+        tfliteOptions = new Interpreter.Options();
+        tfliteOptions.setNumThreads(Parameter.NUM_THREAD);
         tfliteOptions.addDelegate(gpuDelegate);
-        reCreateInterpreter();
     }
 
     @Override
     public void useCpu() {
         tfliteOptions = new Interpreter.Options();
-        reCreateInterpreter();
+        tfliteOptions.setNumThreads(Parameter.NUM_THREAD);
     }
 
     public void reCreateInterpreter(){
-        if(this.mInterpreter != null){
-            this.mInterpreter.close();
-            this.mInterpreter = new Interpreter(mappedByteBuffer, tfliteOptions);
+        if(mInterpreter != null){
+            mInterpreter.close();
+            mInterpreter = null;
         }
+
+        this.mInterpreter = new Interpreter(mappedByteBuffer, tfliteOptions);
     }
 
     public Integer getSensorOrientation() {

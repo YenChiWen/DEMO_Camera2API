@@ -1,25 +1,15 @@
 package com.example.demo_camera2api;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
-import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Rect;
 import android.graphics.RectF;
-import android.util.Log;
 import android.util.Size;
-import android.view.Surface;
+import android.view.View;
+import android.view.ViewGroup;
 
 import com.example.demo_camera2api.tflite.Classifier;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.text.DecimalFormat;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -29,6 +19,7 @@ import java.util.Map;
 public class Parameter {
     // main activity
     public static FPSCalculator fpsCalculator = new FPSCalculator("detector_fps");
+    public static FPSCalculator msCalculator = new FPSCalculator("detector_ms");
 
     private static Map<String, String> SOURCE = new HashMap<String, String>();
     public static Map<String, String> getSOURCE() {
@@ -41,17 +32,17 @@ public class Parameter {
     }
 
 
-    //
-    public final String TF_OD_MODEL = "detect_ori.tflite";
+    // model setting
+    public final String TF_OD_MODEL = "detect_toco.tflite";
+    public final String TF_OD_MODEL_QUANT = "detect_toco255.tflite";
     public final String TF_OD_LABEL = "labelmap.txt";
     public static final Size TF_OD_INPUT_SIZE = new Size(300,300);
-    public final boolean TF_OD_IS_QUANTIZED = true;
-
+    public static boolean TF_OD_IS_QUANTIZED = false;
     public static final float IMAGE_MEAN = 128.0f;
     public static final float IMAGE_STD = 128.0f;
-    public float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
-    public int NUM_DETECTIONS = 10;
-    public int NUM_THREAD = 1;
+    public static float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
+    public static int NUM_DETECTIONS = 10;
+    public static int NUM_THREAD = 1;
 
 
     //
@@ -59,6 +50,18 @@ public class Parameter {
         File file = new File(sPath);
         if(!file.exists())
             file.mkdirs();
+    }
+
+    public static void enableDisableView(View view, boolean enabled) {
+        view.setEnabled(enabled);
+
+        if ( view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup)view;
+
+            for ( int idx = 0 ; idx < group.getChildCount() ; idx++ ) {
+                enableDisableView(group.getChildAt(idx), enabled);
+            }
+        }
     }
 
     public List<Classifier.Recognition> objectDetector(Detector detector, Bitmap bmp){
@@ -75,6 +78,7 @@ public class Parameter {
             }
         }
 
+        msCalculator.calculateMilliSeconds();
         fpsCalculator.calculate();
 
         return mappedRecognitions;

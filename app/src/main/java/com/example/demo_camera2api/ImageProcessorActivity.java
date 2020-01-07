@@ -17,8 +17,10 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class ImageProcessorActivity extends AppCompatActivity {
     Button btnLoadImage;
@@ -29,6 +31,7 @@ public class ImageProcessorActivity extends AppCompatActivity {
     TextView textView_confidence_plus;
     TextView textView_confidence_minus;
     TextView textView_confidence;
+    LinearLayout layoutProcess;
 
     Detector objectClassifier;
     Parameter parameter;
@@ -58,6 +61,7 @@ public class ImageProcessorActivity extends AppCompatActivity {
         textView_confidence_plus = findViewById(R.id.textView_confidence_plus);
         textView_confidence_minus = findViewById(R.id.textView_confidence_minus);
         textView_confidence = findViewById(R.id.textView_confidence);
+        layoutProcess = findViewById(R.id.layout_process);
 
         btnLoadImage.setOnClickListener(listener_load);
         btnSaveImage.setOnClickListener(listener_save);
@@ -143,12 +147,12 @@ public class ImageProcessorActivity extends AppCompatActivity {
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
             ConstraintLayout layout_ob_confidence = findViewById(R.id.layout_ob_confidence);
 
+            Parameter.enableDisableView(layoutProcess, isChecked);
             if(isChecked){
-                layout_ob_confidence.setVisibility(View.VISIBLE);
+                Toast.makeText(ImageProcessorActivity.this, "object detect", Toast.LENGTH_LONG).show();
                 reDetecte();
             }
-            else{
-                layout_ob_confidence.setVisibility(View.GONE);
+            else {
                 imageView.setImageBitmap(bmpOri);
             }
         }

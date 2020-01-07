@@ -7,6 +7,7 @@ import android.util.Log;
  */
 
 public class FPSCalculator {
+    long ms;
     long totalCount;
     int fps;
     int numberOfCountFPS = 0;
@@ -35,6 +36,16 @@ public class FPSCalculator {
     public FPSCalculator(String prefix) {
         PREFIX_TAG = prefix;
         TAG = PREFIX_TAG + " " + TAG;
+    }
+
+    public void calculateMilliSeconds(){
+        if(time == -1) time = System.currentTimeMillis();
+        if(startTime == -1) startTime = System.currentTimeMillis();
+
+        endTime = System.currentTimeMillis();
+        ms = endTime - startTime;
+        Log.d(TAG, "ms: " + ms);
+        startTime = endTime;
     }
 
 
