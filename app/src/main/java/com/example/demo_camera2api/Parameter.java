@@ -28,7 +28,7 @@ import java.util.Map;
 @SuppressLint("NewApi")
 public class Parameter {
     // main activity
-    private FPSCalculator fpsCalculator = new FPSCalculator("detector_fps");
+    public static FPSCalculator fpsCalculator = new FPSCalculator("detector_fps");
 
     private static Map<String, String> SOURCE = new HashMap<String, String>();
     public static Map<String, String> getSOURCE() {

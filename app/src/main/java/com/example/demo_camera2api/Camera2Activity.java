@@ -19,6 +19,7 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -40,7 +41,9 @@ public class Camera2Activity extends AppCompatActivity {
     TextView textView_thread_plus;
     TextView textView_thread_minus;
     TextView textView_thread;
-
+    Button btn_CPU;
+    Button btn_GPU;
+    Button btn_NNAPI;
     int lens;
     String TAG = "YEN_camera2Activity";
 
@@ -83,6 +86,9 @@ public class Camera2Activity extends AppCompatActivity {
         textView_thread_plus = findViewById(R.id.textView_thread_plus);
         textView_thread_minus = findViewById(R.id.textView_thread_minus);
         textView_thread = findViewById(R.id.textView_thread);
+        btn_CPU = findViewById(R.id.btn_cpu);
+        btn_GPU = findViewById(R.id.btn_GPU);
+        btn_NNAPI = findViewById(R.id.btn_nnapi);
 
         btnCapture.setOnClickListener(listenerCapture);
         btnRecode.setOnClickListener(listenerRecode);
@@ -94,6 +100,9 @@ public class Camera2Activity extends AppCompatActivity {
         textView_confidence_minus.setOnClickListener(listener_confidence_minus);
         textView_thread_plus.setOnClickListener(listener_thread_plus);
         textView_thread_minus.setOnClickListener(listener_thread_minus);
+        btn_CPU.setOnClickListener(listener_usingCpu);
+        btn_GPU.setOnClickListener(listener_usingGpu);
+        btn_NNAPI.setOnClickListener(listener_usingNNAPI);
         setTextView_confidence();
         setTextView_thread();
 
@@ -225,6 +234,8 @@ public class Camera2Activity extends AppCompatActivity {
         @Override
         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
             if(camera2 != null) {
+                Toast.makeText(Camera2Activity.this, "face", Toast.LENGTH_LONG).show();
+
                 camera2.setbFaceDetector(isChecked);
             }
         }
@@ -236,6 +247,8 @@ public class Camera2Activity extends AppCompatActivity {
             ConstraintLayout layout_ob_confidence = findViewById(R.id.layout_ob_confidence);
 
             if(camera2 != null) {
+                Toast.makeText(Camera2Activity.this, "object detect", Toast.LENGTH_LONG).show();
+
                 camera2.setbObjectDetector(isChecked);
                 overlayView.setVisibility(isChecked ? View.VISIBLE : View.INVISIBLE);
                 layout_ob_confidence.setVisibility(isChecked ? View.VISIBLE : View.GONE);
@@ -248,6 +261,7 @@ public class Camera2Activity extends AppCompatActivity {
         public void onClick(View v) {
             if(parameter.MINIMUM_CONFIDENCE_TF_OD_API < 1){
                 parameter.MINIMUM_CONFIDENCE_TF_OD_API +=  0.1f;
+                Toast.makeText(Camera2Activity.this,"confidence : " + String.valueOf(parameter.MINIMUM_CONFIDENCE_TF_OD_API), Toast.LENGTH_LONG).show();
                 setTextView_confidence();
             }
             else{
@@ -261,6 +275,7 @@ public class Camera2Activity extends AppCompatActivity {
         public void onClick(View v) {
             if(parameter.MINIMUM_CONFIDENCE_TF_OD_API > 1E-2){
                 parameter.MINIMUM_CONFIDENCE_TF_OD_API -= 0.1f;
+                Toast.makeText(Camera2Activity.this, "confidence : " + String.valueOf(parameter.MINIMUM_CONFIDENCE_TF_OD_API), Toast.LENGTH_LONG).show();
                 setTextView_confidence();
             }
             else{
@@ -274,6 +289,7 @@ public class Camera2Activity extends AppCompatActivity {
         public void onClick(View v) {
             if(parameter.NUM_THREAD < 10){
                 parameter.NUM_THREAD +=  1;
+                Toast.makeText(Camera2Activity.this, "thread num : " + String.valueOf(parameter.NUM_THREAD), Toast.LENGTH_LONG).show();
                 setTextView_thread();
             }
             else{
@@ -287,11 +303,51 @@ public class Camera2Activity extends AppCompatActivity {
         public void onClick(View v) {
             if(parameter.NUM_THREAD > 1){
                 parameter.NUM_THREAD -= 1;
+                Toast.makeText(Camera2Activity.this, "thread num : " + String.valueOf(parameter.NUM_THREAD), Toast.LENGTH_LONG).show();
                 setTextView_thread();
             }
             else{
                 Log.d(TAG, "Thread is less than 1.");
             }
+        }
+    };
+
+    View.OnClickListener listener_usingCpu = new View.OnClickListener() {
+        @Override
+        public void onClick(View view) {
+            Log.d(TAG, "listener_usingCpu: ");
+
+            camera2.setbObjectDetector(false);
+            objectClassifier.useCpu();
+            camera2.setbObjectDetector(true);
+
+            Toast.makeText(Camera2Activity.this, "using CPU", Toast.LENGTH_LONG).show();
+        }
+    };
+
+    View.OnClickListener listener_usingGpu = new View.OnClickListener(){
+        @Override
+        public void onClick(View view) {
+            Log.d(TAG, "listener_usingGpu: ");
+
+            camera2.setbObjectDetector(false);
+            objectClassifier.useGpu();
+            camera2.setbObjectDetector(true);
+
+            Toast.makeText(Camera2Activity.this, "using GPU", Toast.LENGTH_LONG).show();
+        }
+    };
+
+    View.OnClickListener listener_usingNNAPI = new View.OnClickListener() {
+        @Override
+        public void onClick(View view) {
+            Log.d(TAG, "listener_usingNNAPI: ");
+
+            camera2.setbObjectDetector(false);
+            objectClassifier.useNNAPI();
+            camera2.setbObjectDetector(true);
+
+            Toast.makeText(Camera2Activity.this, "using NNAPI", Toast.LENGTH_LONG).show();
         }
     };
 }

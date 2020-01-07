@@ -68,7 +68,6 @@ public class Camera2API {
     //
     private static final int REQUEST_CAMERA_PERMISSION = 0;
     private static final int REQUEST_AUDIO_PERMISSIONS = 10;
-    private FPSCalculator fpsCalculator = new FPSCalculator(getClass().getSimpleName());
     private static String TAG = "YEN_Camera2API";
 
     // detector
@@ -322,7 +321,7 @@ public class Camera2API {
         public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
             super.onCaptureCompleted(session, request, result);
 
-            fpsCalculator.calculate();
+            Parameter.fpsCalculator.calculate();
         }
     };
 

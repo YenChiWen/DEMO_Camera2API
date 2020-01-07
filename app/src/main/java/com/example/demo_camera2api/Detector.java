@@ -53,6 +53,8 @@ public class Detector implements Classifier {
 
     private Interpreter mInterpreter;
     private ByteBuffer mImageData;
+    Interpreter.Options tfliteOptions = new Interpreter.Options();
+    MappedByteBuffer mappedByteBuffer;
 
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
@@ -106,9 +108,9 @@ public class Detector implements Classifier {
             FileChannel fileChannel = inputStream.getChannel();
             long startOffset = fileDescriptor.getStartOffset();
             long declaredLength = fileDescriptor.getDeclaredLength();
-            MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
+            mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
 
-            mInterpreter = new Interpreter(mappedByteBuffer);
+            mInterpreter = new Interpreter(mappedByteBuffer, tfliteOptions);
 
             Log.d(TAG, "Load model file.");
             return true;
@@ -243,6 +245,7 @@ public class Detector implements Classifier {
 
     @Override
     public void close() {
+        mInterpreter.close();
 
     }
 
@@ -252,7 +255,6 @@ public class Detector implements Classifier {
         reCreateInterpreter();
     }
 
-    Interpreter.Options tfliteOptions = new Interpreter.Options();
     @Override
     public void useNNAPI() {
         NnApiDelegate nnApiDelegate = new NnApiDelegate();
@@ -273,10 +275,10 @@ public class Detector implements Classifier {
         reCreateInterpreter();
     }
 
-    private void reCreateInterpreter(){
+    public void reCreateInterpreter(){
         if(this.mInterpreter != null){
             this.mInterpreter.close();
-            loadModel();
+            this.mInterpreter = new Interpreter(mappedByteBuffer, tfliteOptions);
         }
     }
 
